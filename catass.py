@@ -2,19 +2,57 @@ import tkinter as tk
 from tkinter import ttk
 import sqlite3
 
-# Connect to the SQLite database
+def on_tree_select(event):
+    selected_item = tree.selection()[0]
+    item_values = tree.item(selected_item, 'values')
+    # Populate entry fields with selected item values
+    asset_name_entry.delete(0, tk.END)
+    asset_name_entry.insert(0, item_values[1])
+    asset_type_entry.delete(0, tk.END)
+    asset_type_entry.insert(0, item_values[2])
+    serial_number_entry.delete(0, tk.END)
+    serial_number_entry.insert(0, item_values[3])
+    purchase_date_entry.delete(0, tk.END)
+    purchase_date_entry.insert(0, item_values[4])
+    purchase_cost_entry.delete(0, tk.END)
+    purchase_cost_entry.insert(0, item_values[5])
+    assigned_to_employee_id_entry.delete(0, tk.END)
+    assigned_to_employee_id_entry.insert(0, item_values[6])
+
+def load_assets():
+    tree.delete(*tree.get_children())
+    cursor.execute('SELECT * FROM Assets')
+    for row in cursor.fetchall():
+        tree.insert('', 'end', values=row)
+
+def add_asset():
+    name = asset_name_entry.get()
+    asset_type = asset_type_entry.get()
+    serial_number = serial_number_entry.get()
+    purchase_date = purchase_date_entry.get()
+    purchase_cost = purchase_cost_entry.get()
+    assigned_to_employee_id = assigned_to_employee_id_entry.get()
+    cursor.execute('INSERT INTO Assets(AssetName, AssetType, SerialNumber, PurchaseDate, PurchaseCost, AssignedToEmployeeID) VALUES (?, ?, ?, ?, ?, ?)',
+                   (name, asset_type, serial_number, purchase_date, purchase_cost, assigned_to_employee_id))
+    conn.commit()
+    load_assets()
+
+def edit_asset():
+    selected_item = tree.selection()[0]
+    asset_id = tree.item(selected_item, 'values')[0]
+    name = asset_name_entry.get()
+    asset_type = asset_type_entry.get()
+    serial_number = serial_number_entry.get()
+    purchase_date = purchase_date_entry.get()
+    purchase_cost = purchase_cost_entry.get()
+    assigned_to_employee_id = assigned_to_employee_id_entry.get()
+    cursor.execute('UPDATE Assets SET AssetName=?, AssetType=?, SerialNumber=?, PurchaseDate=?, PurchaseCost=?, AssignedToEmployeeID=? WHERE AssetID=?',
+                   (name, asset_type, serial_number, purchase_date, purchase_cost, assigned_to_employee_id, asset_id))
+    conn.commit()
+    load_assets()
+
 conn = sqlite3.connect('asset_management.db')
 cursor = conn.cursor()
-
-# Create Employee and Asset tables if they don't exist
-cursor.execute('''CREATE TABLE IF NOT EXISTS Employees (
-                    EmployeeID INTEGER PRIMARY KEY,
-                    EmployeeName TEXT NOT NULL,
-                    DepartmentID INTEGER,
-                    Position TEXT,
-                    Email TEXT,
-                    Phone TEXT
-                )''')
 
 cursor.execute('''CREATE TABLE IF NOT EXISTS Assets (
                     AssetID INTEGER PRIMARY KEY,
@@ -23,65 +61,28 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS Assets (
                     SerialNumber TEXT,
                     PurchaseDate TEXT,
                     PurchaseCost REAL,
-                    AssignedToEmployeeID INTEGER,
-                    FOREIGN KEY (AssignedToEmployeeID) REFERENCES Employees(EmployeeID)
+                    AssignedToEmployeeID INTEGER
                 )''')
 conn.commit()
 
-# Function to fetch assets from the database and display in the treeview
-def load_assets():
-    asset_tree.delete(*asset_tree.get_children())
-    cursor.execute('SELECT Assets.AssetID, Assets.AssetName, Assets.AssetType, Assets.SerialNumber, Assets.PurchaseDate, Assets.PurchaseCost, Employees.EmployeeName FROM Assets LEFT JOIN Employees ON Assets.AssignedToEmployeeID = Employees.EmployeeID')
-    for row in cursor.fetchall():
-        asset_tree.insert('', 'end', values=row)
-
-# Function to add a new asset to the database
-def add_asset():
-    name = asset_name_entry.get()
-    asset_type = asset_type_entry.get()
-    serial_number = serial_number_entry.get()
-    purchase_date = purchase_date_entry.get()
-    purchase_cost = purchase_cost_entry.get()
-    assigned_to_employee_name = assigned_to_employee_name_entry.get()
-
-    # Fetch employee ID based on employee name
-    cursor.execute('SELECT EmployeeID FROM Employees WHERE EmployeeName=?', (assigned_to_employee_name,))
-    result = cursor.fetchone()
-    assigned_to_employee_id = result[0] if result else None
-
-    cursor.execute('INSERT INTO Assets(AssetName, AssetType, SerialNumber, PurchaseDate, PurchaseCost, AssignedToEmployeeID) VALUES (?, ?, ?, ?, ?, ?)',
-                   (name, asset_type, serial_number, purchase_date, purchase_cost, assigned_to_employee_id))
-    conn.commit()
-    load_assets()
-
-# Create the main window
 root = tk.Tk()
 root.title('IT Asset Management')
 
-# Create the notebook (tabbed interface)
-notebook = ttk.Notebook(root)
-notebook.pack(pady=10)
+tree = ttk.Treeview(root, columns=('AssetID', 'AssetName', 'AssetType', 'SerialNumber', 'PurchaseDate', 'PurchaseCost', 'AssignedToEmployeeID'), selectmode='browse')
+tree.heading('#0', text='AssetID')
+tree.heading('#1', text='Name')
+tree.heading('#2', text='Type')
+tree.heading('#3', text='Serial Number')
+tree.heading('#4', text='Purchase Date')
+tree.heading('#5', text='Purchase Cost')
+tree.heading('#6', text='Assigned To')
+tree.pack(expand=True, fill='both')
 
-# Create the Assets tab
-assets_frame = ttk.Frame(notebook)
-notebook.add(assets_frame, text='Assets')
+tree.bind('<<TreeviewSelect>>', on_tree_select)
 
-# Create the treeview for displaying assets
-asset_tree = ttk.Treeview(assets_frame, columns=('AssetID', 'AssetName', 'AssetType', 'SerialNumber', 'PurchaseDate', 'PurchaseCost', 'AssignedToEmployee'))
-asset_tree.heading('#0', text='AssetID')
-asset_tree.heading('#1', text='Name')
-asset_tree.heading('#2', text='Type')
-asset_tree.heading('#3', text='Serial Number')
-asset_tree.heading('#4', text='Purchase Date')
-asset_tree.heading('#5', text='Purchase Cost')
-asset_tree.heading('#6', text='Assigned To')
-asset_tree.pack(expand=True, fill='both')
-
-# Load assets initially
 load_assets()
 
-# Create the Add Asset section
-add_asset_frame = ttk.LabelFrame(assets_frame, text='Add Asset')
+add_asset_frame = ttk.LabelFrame(root, text='Add/Edit Asset')
 add_asset_frame.pack(pady=10)
 
 tk.Label(add_asset_frame, text='Name:').grid(row=0, column=0, padx=5, pady=2)
@@ -104,11 +105,15 @@ tk.Label(add_asset_frame, text='Purchase Cost:').grid(row=4, column=0, padx=5, p
 purchase_cost_entry = tk.Entry(add_asset_frame)
 purchase_cost_entry.grid(row=4, column=1, padx=5, pady=2)
 
-tk.Label(add_asset_frame, text='Assigned To Employee:').grid(row=5, column=0, padx=5, pady=2)
-assigned_to_employee_name_entry = tk.Entry(add_asset_frame)
-assigned_to_employee_name_entry.grid(row=5, column=1, padx=5, pady=2)
+tk.Label(add_asset_frame, text='Assigned To Employee ID:').grid(row=5, column=0, padx=5, pady=2)
+assigned_to_employee_id_entry = tk.Entry(add_asset_frame)
+assigned_to_employee_id_entry.grid(row=5, column=1, padx=5, pady=2)
 
 add_asset_button = tk.Button(add_asset_frame, text='Add Asset', command=add_asset)
 add_asset_button.grid(row=6, columnspan=2, pady=5)
 
+edit_asset_button = tk.Button(add_asset_frame, text='Edit Asset', command=edit_asset)
+edit_asset_button.grid(row=7, columnspan=2, pady=5)
+
 root.mainloop()
+
